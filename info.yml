@@ -33,12 +33,11 @@ authors:
 # These are the files that will be "public" to the teams via the scoreboard.
 # The paths are relative to the repository!
 public_files:
-  - service/service
-  - service/src/config.py
+  - service/deploy/usim/disk.img.gz
 
 # These are the files that may be patched. They are relative to / in the challenge container!
 patchable_files:
-  - /service
+  - /opt/usim/disk.img.gz
 
 # Test scripts are heavily encouraged.
 # All scripts should exit 0 if nothing went wrong.

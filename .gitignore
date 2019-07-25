@@ -1,0 +1,5 @@
+/tags
+**/__pycache__/
+**/*.pyc
+/service/deploy/chaos/*.log
+/public_bundle.tar.gz

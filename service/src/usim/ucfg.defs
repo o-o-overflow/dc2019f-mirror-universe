@@ -1,0 +1,23 @@
+// X(section, name, default)
+
+X(usim, state_filename, "usim.state")
+
+X(ucode, promsym_filename, "promh.sym.9")
+X(ucode, prommcr_filename, "promh.mcr.9")
+X(ucode, mcrsym_filename, "ucadr.sym.841")
+
+X(chaos, myaddr, "0404")
+
+X(disk, disk0_filename, "disk.img")
+X(disk, disk1_filename, NULL)
+X(disk, disk2_filename, NULL)
+X(disk, disk3_filename, NULL)
+X(disk, disk4_filename, NULL)
+X(disk, disk5_filename, NULL)
+X(disk, disk6_filename, NULL)
+X(disk, disk7_filename, NULL)
+
+X(trace, level, "notice")
+X(trace, facilities, "none")
+
+X(kbd, type, "knight")

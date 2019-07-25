@@ -1,0 +1,15 @@
+*~
+
+*.o
+
+FILE
+MINI
+chaosd
+client
+listen
+server
+time
+
+*.log
+
+TAGS

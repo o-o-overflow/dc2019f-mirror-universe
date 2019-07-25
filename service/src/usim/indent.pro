@@ -1,0 +1,43 @@
+-nbad
+-bap
+-bbo
+-nbc
+-br
+-brs
+-c33
+-cd33
+-cdb
+-ce
+-ci4
+-il0
+-cli0
+-cp33
+-di0
+-fc1
+-nfca
+-hnl
+-i8
+-ip4
+-l1024
+-lp
+-npcs
+-nprs
+-psl
+-saf
+-sai
+-saw
+-sc
+-nsob
+-nss
+-ts8
+-ut
+-T uint16_t
+-T uint32_t
+-T uint64_t
+-T YYSTYPE
+-T XEvent
+-T symtype_t
+-T sym_t
+-T symtab_t
+-T ucw_t
+-T ucfg_t
