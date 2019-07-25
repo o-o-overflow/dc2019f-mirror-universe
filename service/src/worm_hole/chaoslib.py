@@ -2,6 +2,7 @@
 import collections
 import enum
 import io
+import logging
 import os
 import queue
 import random
@@ -10,6 +11,8 @@ import stat
 import struct
 import threading
 import time
+
+l = logging.getLogger("chaoslib")
 
 @enum.unique
 class CHAOS_OP(enum.Enum):
@@ -121,6 +124,8 @@ class ChaosConnectionThread(threading.Thread):
         self.dest_pkt_num = None
         
         self.service = service
+
+        self.pending_packets = dict()
         
         self.data_buffer = data_buffer
         self.data_buffer_lock = threading.RLock()
@@ -149,14 +154,21 @@ class ChaosConnectionThread(threading.Thread):
     def wait_for_sts_ack(self):
         while True:
             pkt = self.read_chaos_packet()
-            print(pkt)
+            l.debug(f"received {pkt}")
+            if not pkt:
+                l.warning("waiting for sts, but no more packets")
+                return
             # this is for me
             if self.is_pkt_for_this_connection(pkt):
+                l.info(f"received pkt for this connection {pkt}")
                 if pkt.op == CHAOS_OP.STS:
                     # should be in response to what I just sent
                     receipt, window = struct.unpack('<HH', pkt.data)
                     if receipt == self.my_pkt_num:
+                        l.info(f"got pkt I was expecting {receipt}")
                         break
+                    else:
+                        l.warning(f"got pkt I was NOT expecting {receipt}")
                 self.process_received_packet(pkt)        
 
     def writeall(self, data):
@@ -185,25 +197,32 @@ class ChaosConnectionThread(threading.Thread):
             except socket.error:
                 done = True
                 continue
-            print(pkt)
+            if not pkt:
+                l.warning(f"no pkts available, stopping.")
+                return
+            l.debug(f"pkt {pkt}")
             # this is for me
             if self.is_pkt_for_this_connection(pkt):
                 self.process_received_packet(pkt)
 
     def process_received_packet(self, pkt):
+        next_pkt_num = ((self.dest_pkt_num + 1) & 0xFFFF)
         if pkt.op == CHAOS_OP.CLS:
             self.close()
             with self.data_buffer_lock:
                 self.data_buffer.put(None)
 
         elif pkt.op == CHAOS_OP.EOF:
+            if pkt.pkt_num != next_pkt_num:
+                l.info(f"received pkt {pkt.pkt_num} expecting {next_pkt_num}, queuing {pkt}")
+                self.pending_packets[pkt.pkt_num] = pkt
+                return
             # TODO: EOF, ack and close connection
-            if pkt.pkt_num == ((self.dest_pkt_num + 1) & 0xFFFF):                
-                self.dest_pkt_num = pkt.pkt_num
-                self.send_sts_ack()
-                self.close()
-                with self.data_buffer_lock:
-                    self.data_buffer.put(None)
+            self.dest_pkt_num = pkt.pkt_num
+            self.send_sts_ack()
+            self.close()
+            with self.data_buffer_lock:
+                self.data_buffer.put(None)
 
         elif pkt.op == CHAOS_OP.SNS:
             self.send_sts_ack()
@@ -213,15 +232,26 @@ class ChaosConnectionThread(threading.Thread):
             # only accept if it is the next data packet,
             # we will be very simple for now and only accept the next data packet
             # (essentially having a window size of 1)
-            if pkt.pkt_num == ((self.dest_pkt_num + 1) & 0xFFFF):
-                self.dest_pkt_num = pkt.pkt_num                
-                self.send_sts_ack()
-                with self.data_buffer_lock:
-                    for d in pkt.data:
-                        self.data_buffer.put(d)
+            if pkt.pkt_num != next_pkt_num:
+                l.info(f"received pkt {pkt.pkt_num} expecting {next_pkt_num}, queuing {pkt}")
+                self.pending_packets[pkt.pkt_num] = pkt
+                return
+            self.dest_pkt_num = pkt.pkt_num                
+            self.send_sts_ack()
+            with self.data_buffer_lock:
+                for d in pkt.data:
+                    self.data_buffer.put(d)
         else:
             # got some other packet, ignore it
             pass
+
+        # check, do we have the next pending packet?
+        next_pkt_num = ((self.dest_pkt_num + 1) & 0xFFFF)
+        if next_pkt_num in self.pending_packets:
+            next_pkt = self.pending_packets[next_pkt_num]
+            l.info(f"we have the next pkt waiting {next_pkt_num}, let's handle {next_pkt}")
+            del self.pending_packets[next_pkt_num]
+            self.process_received_packet(next_pkt)
         
 
     def read_chaos_packet(self):
@@ -235,6 +265,9 @@ class ChaosConnectionThread(threading.Thread):
                     headers = self.fd.recv(4)
                 except socket.timeout:
                     continue
+                except OSError as e:
+                    l.warning(f"exception {e} when trying to read, giving up")
+                    return
                 assert len(headers) == 4
                 pkt_len = headers[0] << 8 | headers[1]
                 raw_pkt = self.fd.recv(pkt_len)
@@ -271,9 +304,12 @@ class ChaosConnectionThread(threading.Thread):
         done = False
         while not done:
             pkt = self.read_chaos_packet()
-            print(pkt)
+            l.debug(f"pkt {pkt}")
+            if not pkt:
+                raise Exception("unable to establish a connection.")
             # this is for me
             if self.is_pkt_for_this_connection(pkt):
+                l.info("received pkt for this connection {pkt}")
                 if pkt.op == CHAOS_OP.CLS:
                     raise Exception("unable to establish a connection.")
                 elif pkt.op == CHAOS_OP.ANS:
@@ -284,6 +320,7 @@ class ChaosConnectionThread(threading.Thread):
                 # data of the packet should be the window size, I suppose we'll ignore it for now
                 self.dest_idx = pkt.src_idx
                 self.dest_pkt_num = pkt.pkt_num
+                l.info(f"dest index {self.dest_idx} dest pkt num {self.dest_pkt_num}")
 
                 # respond to complete the connection
                 self.send_sts_ack()

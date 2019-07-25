@@ -2,7 +2,9 @@
 
 import argparse
 import collections
+import datetime
 import logging
+import multiprocessing
 import os
 import socketserver
 
@@ -10,24 +12,33 @@ import ipdb
 
 import chaoslib
 
+l = logging.getLogger("worm-hole")
+
 HTTPReq = collections.namedtuple('HTTPReq', ['method', 'uri', 'version', 'headers', 'body'])
 
 CADR_ADDR = 0o401
 OUR_ADDR = 0o406
 SERVICE_NAME = b"HTTP"
 
+chaos_lock = multiprocessing.Semaphore(4)
+
 def parse_http_req(f):
     """
     Return an HTTPReq if request was valid, otherwise return None if request was invalid
     """
     header_line = f.readline().rstrip()
+    l.debug(f"Read line {header_line}")
+    
     header = header_line.split(b' ')
     if len(header) != 3:
+        l.warning(f"received invalid start header line {header_line}")
         return None
 
     method = header[0]
     uri = header[1]
     version = header[2]
+
+    l.info(f"parsed the {method} {uri} {version}")
 
     # TODO: verify that the URI can be URI decoded
     headers = collections.OrderedDict()
@@ -39,16 +50,19 @@ def parse_http_req(f):
 
         header_parts = line.split(b':', maxsplit=1)
         if len(header_parts) != 2:
+            l.warning(f"got a bad header {line}, ignoring the whole request.")
             return None
 
         name = header_parts[0]
         value = header_parts[1].strip()
+        l.info(f"got a new header {name}: {value}")
 
         lower_name = name.decode('utf-8').lower()
 
         headers[lower_name] = (name, value)
 
     if not headers:
+        l.warning(f"Did not get any headers")
         return None
 
     # According to the spec, if we don't have a content-length header,
@@ -62,9 +76,11 @@ def parse_http_req(f):
         try:
             length = int(actual_content_length)
         except:
+            l.warning(f"invalid content length {actual_content_length}")
             return None
 
         if length <= 0:
+            l.warning(f"content length was negative {length}")
             return None
 
         to_read = length
@@ -78,11 +94,21 @@ def parse_http_req(f):
                 to_read -= len(data)
                 if to_read <= 0:
                     done = True
+    else:
+         l.info("no content length, not reading any more.")
 
     return HTTPReq(method, uri, version, headers, body)
 
 def http_response(http_code, reason, body = b""):
-    return b"WHAT"
+    response = b"HTTP/1.1 " + http_code + b" " + reason + b"\r\n"
+
+    if body:
+        response += b"Content-Length: " + bytes(str(len(body)), 'utf-8') + b"\r\n\r\n"
+        response += body
+    else:
+        response += b"\r\n"
+
+    return response
 
 # High level of what we want to do:
 
@@ -95,9 +121,12 @@ def http_response(http_code, reason, body = b""):
 class WormHoleTCPHandler(socketserver.StreamRequestHandler):
 
     def handle(self):
+        start = datetime.datetime.now()
+        l.info(f"Got new http request")
         req = parse_http_req(self.rfile)
         if not req:
-            self.request.sendall(http_response(400, b"Your request did not survive into the worm hole."))
+            l.info(f"invalid request, sending a 400")
+            self.request.sendall(http_response(b"400", b"Your request did not survive into the worm hole."))
             return
 
         # request was good, send it to the chaoslib and see what they say
@@ -109,30 +138,36 @@ class WormHoleTCPHandler(socketserver.StreamRequestHandler):
 
         body = req.body
 
-        connection = chaoslib.ChaosStream(OUR_ADDR, CADR_ADDR, SERVICE_NAME)
+        #self.request.sendall(http_response(b"200", b"OK", b"hello world"))
+        with chaos_lock:
+            l.info(f"connecting to cadr")
+            connection = chaoslib.ChaosStream(OUR_ADDR, CADR_ADDR, SERVICE_NAME)
 
-        chaos_http_req = status_line + headers + chaoslib.cadr_return + body
+            chaos_http_req = status_line + headers + chaoslib.cadr_return + body
 
-        print(repr(chaos_http_req))
+            l.debug(f"sending {chaos_http_req}")
+            connection.writeall(chaos_http_req)
 
-        connection.writeall(chaos_http_req)
-
-        response = chaoslib.replace_cadr_return_with_newlines(connection.readall())
-        print(repr(response))
-
-        connection.close()
-
+            response = chaoslib.replace_cadr_return_with_newlines(connection.readall())
+            l.debug(f"received {response}")
+            connection.close()
+            
         self.request.sendall(response)
+        end = datetime.datetime.now()
+        diff = end - start
+        l.info(f"responded to request in {diff.total_seconds()} seconds")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="worm_hole")
-    parser.add_argument("--debug", action="store_true", help="Enable debugging AS OF NOW DOES NOTHING")
-    parser.add_argument("--processes", type=int, default=2, help="Number of processes to use")
+    parser.add_argument("--debug", default=False, action="store_true", help="Enable debugging")
     parser.add_argument("--port", type=int, default=7159, help="Port to listen on [default: 7159]")
     parser.add_argument("--host", default='127.0.0.1', help="Host to listen on [default: 127.0.0.1]")
     parser.add_argument("--version", action="version", version="%(prog)s v0.0.1")
-    logging.basicConfig()
     args = parser.parse_args()
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
 #    with socketserver.TCPServer((args.host, args.port), WormHoleTCPHandler) as server:    
     with socketserver.ForkingTCPServer((args.host, args.port), WormHoleTCPHandler) as server:
         server.serve_forever()
