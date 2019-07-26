@@ -26,13 +26,27 @@ Test: another: test
 test=adam&foo=bar
 ")
 
+(defvar header "<!DOCTYPE html>
+<html lang='en'>
+  <head>
+    <meta charset='utf-8'>
+    <title>Terran Criminal Tracker<//title>
+    <link rel='shortcut icon' href='//empire.png'>
+    <link rel='stylesheet' href='//style.css'>
+  <//head>
+  <body>
+")
+
+(defvar footer "<//body>
+<//html>
+")
 
 ;;; For now, we will just use a newline to represent the CRLF
 ;;; WARNING: there might be a major problem with character encoding (ASCII vs. CADR),
 ;;; so we may have to deal with that later. 
 (defconst *CRLF* (string #\Return))
 
-(defvar *DOCUMENT-ROOT* "server:/tmp")
+(defvar *DOCUMENT-ROOT* "server://tmp")
 
 (defun string-split (str to-split &optional (maxsplit -1)
 						 &aux (splits 0))
@@ -242,7 +256,7 @@ test=adam&foo=bar
 															   (format out "~A: ~A~A" key value "<br>"))
 														   (http-req-parameters request)))
 						   (http-req-body request)
-						   "<form method=POST><input name=testing value=foo><input type=submit></form>"
+						   "<form method=POST><input name=testing value=foo><input type=submit><//form>"
 						   )))
 
 (defun test-get (request)
@@ -252,7 +266,9 @@ test=adam&foo=bar
   (200-resp "This is in response to a POST request"))
 
 (defun home-page (request)
-  (200-resp (string-append "Hello world from LISP LAND!" *CRLF* "You requested url <b>" (http-req-uri request) "</b>")))
+  (200-resp (string-append header
+						   "<h1>Welcome to the Terran Empire Criminal Tracking List</h1>"
+						   footer)))
 
 
 (defroutes

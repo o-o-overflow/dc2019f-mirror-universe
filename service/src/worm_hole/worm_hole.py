@@ -99,7 +99,7 @@ def parse_http_req(f):
 
     return HTTPReq(method, uri, version, headers, body)
 
-def http_response(http_code, reason, body = b""):
+def http_response(http_code, reason, body=b"", content_type=b"text/html"):
     response = b"HTTP/1.1 " + http_code + b" " + reason + b"\r\n"
 
     if body:
@@ -126,7 +126,7 @@ class WormHoleTCPHandler(socketserver.StreamRequestHandler):
         req = parse_http_req(self.rfile)
         if not req:
             l.info(f"invalid request, sending a 400")
-            self.request.sendall(http_response(b"400", b"Your request did not survive into the worm hole."))
+            self.request.sendall(http_response(b"400", b"Bad request", b"Your request did not survive into the worm hole."))
             return
 
         # request was good, send it to the chaoslib and see what they say
@@ -137,6 +137,18 @@ class WormHoleTCPHandler(socketserver.StreamRequestHandler):
             headers += name + b": " + value + chaoslib.cadr_return
 
         body = req.body
+
+        # Check, if it was a GET request with something in the ./static directory, send them that
+        if req.method == b"GET":
+            if not b'..' in req.uri:
+                potential_file = b'static' + req.uri
+                if os.path.isfile(potential_file):
+                    l.info(f"GET request for {potential_file}, going to serve that from here")
+                    with open(potential_file, "rb") as f:
+                        self.request.sendall(http_response(b"200", b"OK", f.read()))
+                    return
+            else:
+                l.info(f"tried a LFI exploit {req.uri}, not going to fall for it")
 
         #self.request.sendall(http_response(b"200", b"OK", b"hello world"))
         with chaos_lock:
@@ -170,4 +182,5 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.INFO)
 #    with socketserver.TCPServer((args.host, args.port), WormHoleTCPHandler) as server:    
     with socketserver.ForkingTCPServer((args.host, args.port), WormHoleTCPHandler) as server:
+        l.info(f"starting the wormhole {args.host} {args.port}")
         server.serve_forever()
