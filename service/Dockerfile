@@ -11,7 +11,7 @@ COPY src/worm_hole/requirements.txt /opt/worm_hole/requirements.txt
 
 RUN /opt/worm_hole/venv/bin/pip3 install -r /opt/worm_hole/requirements.txt
 
-COPY src/worm_hole/chaoslib.py src/worm_hole/worm_hole.py /opt/worm_hole/
+COPY src/worm_hole/chaoslib.py src/worm_hole/worm_hole.py src/worm_hole/static /opt/worm_hole/
 
 COPY deploy/chaos/chaosd deploy/chaos/FILE deploy/chaos/MINI deploy/chaos/server /opt/chaos/
 

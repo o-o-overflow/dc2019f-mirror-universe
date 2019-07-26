@@ -33,11 +33,11 @@ authors:
 # These are the files that will be "public" to the teams via the scoreboard.
 # The paths are relative to the repository!
 public_files:
-  - service/deploy/usim/disk.img.gz
+  - service/deploy/usim/system-78-48.LOD
 
 # These are the files that may be patched. They are relative to / in the challenge container!
 patchable_files:
-  - /opt/usim/disk.img.gz
+  - /opt/usim/system-78-48.LOD
 
 # Test scripts are heavily encouraged.
 # All scripts should exit 0 if nothing went wrong.

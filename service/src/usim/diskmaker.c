@@ -1,5 +1,4 @@
 // diskmaker --- manage Trident T-300 & T-80 packs
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -314,14 +313,9 @@ create_disk(char *template)
 	if (parse_template(template))
 		return -1;
 
-	if (access(img_filename, F_OK) != -1) {
-		fprintf(stderr, "refusing to overwrite existing disk pack: %s\n", img_filename);
-		exit(1);
-	}
-
 	printf("creating %s\n", img_filename);
 
-	fd = open(img_filename, O_RDWR | O_CREAT, 0666);
+	fd = open(img_filename, O_RDWR | O_CREAT | O_TRUNC, 0644);
 	if (fd < 0) {
 		perror(img_filename);
 		return -1;
@@ -435,10 +429,10 @@ default_template(void)
 	blocks_per_track = 17;
 
 #define DEFAULT_MCR_LABEL "UCADR 841"
-#define DEFAULT_MCR_FILE "../bands/ucadr.mcr.841"
+#define DEFAULT_MCR_FILE "./ucadr.mcr.841"
 
 #define DEFAULT_LOD_LABEL "78.48 LMFS 21.34"
-#define DEFAULT_LOD_FILE "../bands/system-78-48.LOD"
+#define DEFAULT_LOD_FILE "./system-78-48.LOD"
 
 	part_count = 0;
 

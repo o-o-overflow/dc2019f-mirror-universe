@@ -2,5 +2,7 @@
 
 set -e
 
-zcat /opt/usim/disk.img.gz > /opt/usim/disk.img
+cd /opt/usim 
+
+./diskmaker -c disk.img
 xvfb-run /opt/usim/usim
