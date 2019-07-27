@@ -7,7 +7,7 @@
   http-req-uri
   (http-req-version "1.1")
   (http-req-headers (make-hash-table))
-  (http-req-parameters (make-hash-table))
+  (http-req-parameters '())
   http-req-body)
 
 (defstruct (http-resp)
@@ -38,8 +38,62 @@ test=adam&foo=bar
 ")
 
 (defvar footer "<//body>
-<//html>
+<//html><!-- /debug -->
 ")
+
+(defstruct (criminal)
+  criminal-name
+  criminal-pic
+  criminal-crimes
+  criminal-reward)
+
+(defvar criminals (list (list* "kirk" (make-criminal criminal-name "Capt. James T. Kirk"
+													criminal-pic "//kirk.jpg"
+													criminal-crimes '("Impersonating an officer." "Dangerous ideas.")
+													criminal-reward 1000))
+						(list* "sisko" (make-criminal criminal-name "Commander Benjamin Sisko"
+													 criminal-pic "//sisko.jpg"
+													 criminal-crimes '("terrorist actions." "rebellion against the empire.")
+													 criminal-reward 10000))
+						(list* "lorca" (make-criminal criminal-name "captain gabriel lorca"
+													 criminal-pic "//lorca.jpg"
+													 criminal-crimes '("overthrowing the empire." "murder of the first daughter." "handsomeness.")
+													 criminal-reward 23417))))
+(defvar max-criminals 10)
+
+(defvar criminals-lock nil)
+
+(defmacro with-criminals-lock body
+  `(unwind-protect
+	   (progn (process-lock (locf criminals-lock))
+			  . ,body)
+	 (process-unlock (locf criminals-lock))))
+
+(defun add-criminal (id criminal)
+  (with-criminals-lock
+   (if (>= (length criminals) max-criminals)
+	   (*throw 'too-many-criminals nil))
+   (if (ass 'string-equal id criminals)
+	   (*throw 'already-id nil))
+   (setf criminals (nconc criminals (list (list* id criminal))))))
+
+(defun remove-criminal (id)
+  (declare (special id))
+  (with-criminals-lock
+   (if (not (ass 'string-equal id criminals))
+	   (*throw 'no-id nil))
+   (setq criminals (rem-if #'(lambda (c)
+							   (string-equal (car c) id))
+						   criminals))))
+
+(defun html-criminal (id c)
+  (format nil
+		  "<li><span class='name'>~A<//span><img src='~A'><span class='reward'>~D Imperial Credits<//span><ul class='crimes'>~{ <li>~A<//li> ~}<//ul><form action='//remove-criminal?id=~A' method='POST'><input type='submit' value='Criminal Found'><//form><//li>"
+		  (criminal-name c)
+		  (criminal-pic c)
+		  (criminal-reward c)
+		  (criminal-crimes c)
+		  id))
 
 ;;; For now, we will just use a newline to represent the CRLF
 ;;; WARNING: there might be a major problem with character encoding (ASCII vs. CADR),
@@ -130,7 +184,7 @@ test=adam&foo=bar
 		  for parsed = (string-split pair "=")
 		  when (and (= (length parsed) 2)
 					(> (string-length (first parsed)) 0))
-		  do (puthash (uri-decode (first parsed)) (uri-decode (second parsed)) (http-req-parameters request)))))
+		  do (setf (http-req-parameters request) (nconc (http-req-parameters request) (list (list* (uri-decode (first parsed)) (uri-decode (second parsed)))))))))
 
 ; Extract the parameters from the URL and the body (if present in the body)
 (defun parse-request-parameters (request)
@@ -143,9 +197,6 @@ test=adam&foo=bar
 			 (> (string-length body) 0))
 		(parse-parameters-from-query body request))))
  
-
-
-					 
 
 (defun parse-request-stream (stream)
   (let* ((to-return (make-http-req))
@@ -252,28 +303,80 @@ test=adam&foo=bar
 															   (format out "~A: ~A~A" key value "<br>"))
 														   (http-req-headers request)))
 						   (with-output-to-string (out)
-												  (maphash #'(lambda (key value)
-															   (format out "~A: ~A~A" key value "<br>"))
+												  (mapcar #'(lambda (p)
+															   (format out "~A: ~A<br>" (car p) (cdr p)))
 														   (http-req-parameters request)))
 						   (http-req-body request)
 						   "<form method=POST><input name=testing value=foo><input type=submit><//form>"
 						   )))
 
-(defun test-get (request)
-  (200-resp "This is in response to a get request"))
-
-(defun test-post (request)
-  (200-resp "This is in response to a POST request"))
-
 (defun home-page (request)
   (200-resp (string-append header
-						   "<h1>Welcome to the Terran Empire Criminal Tracking List</h1>"
+						   "<h1>Welcome to the Terran Empire Criminal Tracking List<//h1>"
 						   footer)))
+
+(defun web-add-criminal (request
+						 &aux id name pic crime reward
+						 )
+  (setq id (cdr (ass 'string-equal "id" (http-req-parameters request))))  
+  (setq name (cdr (ass 'string-equal "name" (http-req-parameters request))))
+  (setq pic (cdr (ass 'string-equal "pic" (http-req-parameters request))))
+  (setq crime (cdr (ass 'string-equal "crime" (http-req-parameters request))))
+  (setq reward (cdr (ass 'string-equal "reward" (http-req-parameters request))))
+  (if (not (or name pic crime reward))
+	  (404-resp)
+	  (or (*catch 'too-many-criminals
+				  (or (*catch 'already-id
+							  (add-criminal id (make-criminal criminal-name name
+															  criminal-pic pic
+															  criminal-crimes (list crime)
+															  criminal-reward reward))
+							  (302-resp "//criminals"))
+					  (http-resp-with-body-length "400" "Bad Request" (format nil "Already criminal with id ~A" id))))
+		  (http-resp-with-body-length "400" "Bad Request" (format nil "Too many criminals, handle this one yourself.")))))
+					  
+	   
+	 
+
+(defun web-list-criminals (request
+						   &aux criminals-output
+						   )
+  (with-criminals-lock
+   (setq criminals-output (mapcar #'(lambda (c)
+									  (html-criminal (car c) (cdr c)))
+								  criminals)))
+  (200-resp (format nil "~A <h2>Wanted Criminals<//h2><ul>~{ ~A ~}<//ul><h3>Add a new criminal</h3><form action='//add-criminal'>id: <input type='text' name='id'><br>name: <input type='text' name='name'><br>pic: <input type='text' name='pic'><br>reward: <input type='text' name='reward'><br>crime: <input type='text' name='crime'><input type='submit' value='Charge Criminal'><//form>~A"
+					header
+					criminals-output
+					footer)))
+
+
+(defun web-remove-criminal (request
+							&aux criminal-id)
+  (declare (special out))  
+  (setq criminal-id (cdr (ass 'string-equal "id" (http-req-parameters request))))
+  (if (not criminal-id)
+	  (404-resp)
+	  (or (*catch 'no-id
+				  (remove-criminal (intern criminal-id))
+				  (302-resp "//criminals"))
+		  (404-resp))))
+
+(defun check-admins (&rest args)
+  
+  )
+
+(defun web-admin (request
+				  &aux admins)
+  (setq admins (check-admins (http-req-headers request)))
+  )
 
 
 (defroutes
   ("//debug" ':prefix ':all #'debug-request)
-  ("//test" ':prefix ':get #'test-get)
-  ("//test" ':exact ':post #'test-post)
-  ("//" ':exact ':all #'home-page))
+  ("//criminals" ':exact ':get #'web-list-criminals)
+  ("//add-criminal" ':prefix ':all #'web-add-criminal)
+  ("//remove-criminal" ':prefix ':post #'web-remove-criminal)
+  ((string-append "//" (string 10)) ':exact ':all #'web-admin)
+  ("//" ':exact ':all #'web-list-criminals))
 

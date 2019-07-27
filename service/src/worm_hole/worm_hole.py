@@ -79,12 +79,12 @@ def parse_http_req(f):
             l.warning(f"invalid content length {actual_content_length}")
             return None
 
-        if length <= 0:
+        if length < 0:
             l.warning(f"content length was negative {length}")
             return None
 
         to_read = length
-        done = False
+        done = (length == 0)
         while not done:
             data = f.read(to_read)
             if not data:
