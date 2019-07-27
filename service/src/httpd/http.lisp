@@ -6,7 +6,7 @@
   http-req-method
   http-req-uri
   (http-req-version "1.1")
-  (http-req-headers (make-hash-table))
+  (http-req-headers (make-equal-hash-table))
   (http-req-parameters '())
   http-req-body)
 
@@ -14,7 +14,7 @@
   (http-resp-version "1.1")
   http-resp-status-code
   http-resp-reason-phrase
-  (http-resp-headers (make-hash-table))
+  (http-resp-headers (make-equal-hash-table))
   http-resp-body)
 
 ;; variables to test
@@ -55,9 +55,9 @@ test=adam&foo=bar
 													 criminal-pic "//sisko.jpg"
 													 criminal-crimes '("terrorist actions." "rebellion against the empire.")
 													 criminal-reward 10000))
-						(list* "lorca" (make-criminal criminal-name "captain gabriel lorca"
+						(list* "lorca" (make-criminal criminal-name "Captain Gabriel Lorca"
 													 criminal-pic "//lorca.jpg"
-													 criminal-crimes '("overthrowing the empire." "murder of the first daughter." "handsomeness.")
+													 criminal-crimes '("Overthrowing the Empire." "Murder of the First Daughter." "Handsomeness.")
 													 criminal-reward 23417))))
 (defvar max-criminals 10)
 
@@ -176,7 +176,7 @@ test=adam&foo=bar
 		do (let* ((header-line (string-split line ":" 1))
 				  (header-name (string-trim '(#\sp) (first header-line)))
 				  (header-value (string-trim '(#\sp) (second header-line))))
-			 (puthash header-name header-value (http-req-headers request)))))
+			 (puthash-equal header-name header-value (http-req-headers request)))))
 
 (defun parse-parameters-from-query (query request)
   (let ((pairs (string-split query "&")))
@@ -209,12 +209,12 @@ test=adam&foo=bar
 	to-return))
 
 (defun http-resp-with-body-length (status-code reason-phrase body
-											   &optional (headers (make-hash-table))
+											   &optional (headers (make-equal-hash-table))
 											   &aux body-size)
   (setq body-size (string-length body))
-  (puthash "Content-Length" (format nil "~D" body-size) headers)
-  (puthash "Content-Type" "text//html" headers)
-  (puthash "Server" "cadr//httpd" headers)
+  (puthash-equal "Content-Length" (format nil "~D" body-size) headers)
+  (puthash-equal "Content-Type" "text//html" headers)
+  (puthash-equal "Server" "cadr//httpd" headers)
   (make-http-resp http-resp-status-code status-code http-resp-reason-phrase reason-phrase http-resp-headers headers http-resp-body body))
 
 (defun 404-resp ()
@@ -224,16 +224,16 @@ test=adam&foo=bar
   (http-resp-with-body-length "200" "OK" body))
 
 (defun 302-resp (uri)
-  (let ((headers (make-hash-table)))
-	(puthash "Location" uri headers)
+  (let ((headers (make-equal-hash-table)))
+	(puthash-equal "Location" uri headers)
 	(http-resp-with-body-length "302" "Redirect" "Go elsewhere" headers)))
 
 (defun response-headers-to-string (headers)
   (declare (special out))
   (with-output-to-string (out)
-						 (maphash #'(lambda (key value)
-									  (format out "~A: ~A~A" key value *CRLF*))
-								  headers)))
+						 (maphash-equal #'(lambda (key value)
+											(format out "~A: ~A~A" key value *CRLF*))
+										headers)))
 
 (defun response-to-string (resp)
   (with-output-to-string (stream)
@@ -299,9 +299,9 @@ test=adam&foo=bar
 						   (http-req-uri request)
 						   "<br>"
 						   (with-output-to-string (out)
-												  (maphash #'(lambda (key value)
-															   (format out "~A: ~A~A" key value "<br>"))
-														   (http-req-headers request)))
+												  (maphash-equal #'(lambda (key value)
+																	 (format out "~A: ~A~A" key value "<br>"))
+																 (http-req-headers request)))
 						   (with-output-to-string (out)
 												  (mapcar #'(lambda (p)
 															   (format out "~A: ~A<br>" (car p) (cdr p)))
@@ -309,11 +309,6 @@ test=adam&foo=bar
 						   (http-req-body request)
 						   "<form method=POST><input name=testing value=foo><input type=submit><//form>"
 						   )))
-
-(defun home-page (request)
-  (200-resp (string-append header
-						   "<h1>Welcome to the Terran Empire Criminal Tracking List<//h1>"
-						   footer)))
 
 (defun web-add-criminal (request
 						 &aux id name pic crime reward
@@ -362,14 +357,37 @@ test=adam&foo=bar
 				  (302-resp "//criminals"))
 		  (404-resp))))
 
-(defun check-admins (&rest args)
-  
-  )
+(defun get-users (&rest args
+						&aux request header code)
+  (setq request (first args))
+  (setq header (gethash-equal "auth-code" (http-req-headers request)))
+  (setq code 0)
+  (if header
+	  (or (*catch 'invalid-hex
+				  (loop for i from 0 below (string-length header)
+						for c = (aref header i)
+						do (incf code (hex-to-int c))
+						finally (list '("Empress" . "Georgiou") (list* "code" code))))
+		  args)
+	  '(("Empress" . "Georgiou"))))
+
+
+(defun check-admins (params auth-list)
+  (assoc "burnham" auth-list))
+
+(defun admin-interface (request &aux cmd)
+  (setq cmd (cdr (assoc "cmd" (http-req-parameters request))))
+  (if (not cmd)
+	  (404-resp)
+	  (format nil "Use this to crush your enemies ~A" (eval (read-from-string cmd)))))
 
 (defun web-admin (request
-				  &aux admins)
-  (setq admins (check-admins (http-req-headers request)))
-  )
+				  &aux users admin)
+  (setq users (get-users request 'code))
+  (setq admin (check-admins (http-req-parameters request) users))
+  (if (not admin)
+	  (http-resp-with-body-length "403" "Forbidden" "")
+	  (admin-interface request)))
 
 
 (defroutes
