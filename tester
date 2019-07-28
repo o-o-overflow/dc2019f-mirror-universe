@@ -105,17 +105,17 @@ def test_local():
 			assert os.system("docker exec %s %s" % (tester_container, script)) == 0, "Check %s failed!" % script
 
 def test_interactions():
-	with launch_container() as (_, ip, port):
-		run_interactions(ip, port, SERVICE_CONF['initial_flag'])
+        with launch_container() as (_, ip, port):
+                run_interactions(ip, port, SERVICE_CONF['initial_flag'])
 
-	if SERVICE_CONF['flag_path']:
-		_LOG.info("testing interactions with random flag...")
-		with launch_container() as (c, ip, port):
-			newflag = "OOO{" + ''.join(random.choices(string.ascii_lowercase, k=16)) + "}"
-			assert os.system("docker exec %s sh -c 'echo %s > %s'" % (c, newflag, SERVICE_CONF['flag_path'])) == 0
-			run_interactions(ip, port, newflag)
+        if SERVICE_CONF['flag_path']:
+                _LOG.info("testing interactions with random flag...")
+                with launch_container() as (c, ip, port):
+                        newflag = "OOO{" + ''.join(random.choices(string.ascii_lowercase, k=16)) + "}"
+                        assert os.system("docker exec %s sh -c 'echo %s > %s'" % (c, newflag, SERVICE_CONF['flag_path'])) == 0
+                        run_interactions(ip, port, newflag)
         _LOG.warning("Adam removing short reads test.")
-	#test_short_reads()
+        #test_short_reads()
 
 def run_interactions(ip_address, port, flag=SERVICE_CONF['initial_flag'], max_concurrency=SERVICE_CONF['concurrent_connections']):
 	_LOG.info("Remote-testing container...")
