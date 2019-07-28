@@ -120,6 +120,8 @@ def http_response(http_code, reason, body=b"", content_type=b"text/html"):
 
 class WormHoleTCPHandler(socketserver.StreamRequestHandler):
 
+    timeout = 12
+
     def handle(self):
         start = datetime.datetime.now()
         l.info(f"Got new http request")
@@ -152,18 +154,23 @@ class WormHoleTCPHandler(socketserver.StreamRequestHandler):
 
         #self.request.sendall(http_response(b"200", b"OK", b"hello world"))
         with chaos_lock:
-            l.info(f"connecting to cadr")
-            connection = chaoslib.ChaosStream(OUR_ADDR, CADR_ADDR, SERVICE_NAME)
+            try:
+                l.info(f"connecting to cadr")
+                connection = chaoslib.ChaosStream(OUR_ADDR, CADR_ADDR, SERVICE_NAME)
 
-            chaos_http_req = status_line + headers + chaoslib.cadr_return + body
+                chaos_http_req = status_line + headers + chaoslib.cadr_return + body
 
-            l.debug(f"sending {chaos_http_req}")
-            connection.writeall(chaos_http_req)
+                l.debug(f"sending {chaos_http_req}")
+                connection.writeall(chaos_http_req)
 
-            response = chaoslib.replace_cadr_return_with_newlines(connection.readall())
-            l.debug(f"received {response}")
-            connection.close()
-            
+                response = chaoslib.replace_cadr_return_with_newlines(connection.readall())
+                l.debug(f"received {response}")
+            finally:
+                try:
+                    connection.close()
+                except:
+                    pass
+                    
         self.request.sendall(response)
         end = datetime.datetime.now()
         diff = end - start
@@ -183,4 +190,5 @@ if __name__ == "__main__":
 #    with socketserver.TCPServer((args.host, args.port), WormHoleTCPHandler) as server:    
     with socketserver.ForkingTCPServer((args.host, args.port), WormHoleTCPHandler) as server:
         l.info(f"starting the wormhole {args.host} {args.port}")
-        server.serve_forever()
+        while True:
+            server.handle_request()

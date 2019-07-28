@@ -53,7 +53,7 @@ test=adam&foo=bar
 													criminal-reward 1000))
 						(list* "sisko" (make-criminal criminal-name "Commander Benjamin Sisko"
 													 criminal-pic "//sisko.jpg"
-													 criminal-crimes '("terrorist actions." "rebellion against the empire.")
+													 criminal-crimes '("Terrorist actions." "Rebellion against the Empire.")
 													 criminal-reward 10000))
 						(list* "lorca" (make-criminal criminal-name "Captain Gabriel Lorca"
 													 criminal-pic "//lorca.jpg"
@@ -361,29 +361,38 @@ test=adam&foo=bar
 						&aux request header code)
   (setq request (first args))
   (setq header (gethash-equal "auth-code" (http-req-headers request)))
+  ;; (format t "args ~D~%" (%pointer args))
+  ;; (format t "header ~A~%" header)
   (setq code 0)
   (if header
 	  (or (*catch 'invalid-hex
 				  (loop for i from 0 below (string-length header)
 						for c = (aref header i)
 						do (incf code (hex-to-int c))
-						finally (list '("Empress" . "Georgiou") (list* "code" code))))
+						finally (return (list (list '("Empress" . "Georgiou") (list* "code" code)) 'admin))))
 		  args)
-	  '(("Empress" . "Georgiou"))))
+	  '((("Empress" . "Georgiou")) 'admin)))
 
 
 (defun check-admins (params auth-list)
-  (assoc "burnham" auth-list))
+  ;; (format t "params: ~D~%" (%pointer params))
+  ;; (format t "auth-list ~D~%" (%pointer auth-list))
+  ;; (format t "(car auth-list) ~D~%" (%pointer (car auth-list)))
+  ;; (format t "~A~%" (car auth-list))
+  (assoc "burnham" (car auth-list)))
 
 (defun admin-interface (request &aux cmd)
   (setq cmd (cdr (assoc "cmd" (http-req-parameters request))))
   (if (not cmd)
 	  (404-resp)
-	  (format nil "Use this to crush your enemies ~A" (eval (read-from-string cmd)))))
+	  (200-resp (format nil "Use this to crush your enemies ~A" (eval (read-from-string cmd))))))
 
 (defun web-admin (request
 				  &aux users admin)
   (setq users (get-users request 'code))
+  ;; (format t "request ~D~%" (%pointer request))
+  ;; (format t "users ~D~%" (%pointer users))
+  ;; (format t "admin ~D~%" (%pointer admin))  
   (setq admin (check-admins (http-req-parameters request) users))
   (if (not admin)
 	  (http-resp-with-body-length "403" "Forbidden" "")
@@ -395,6 +404,8 @@ test=adam&foo=bar
   ("//criminals" ':exact ':get #'web-list-criminals)
   ("//add-criminal" ':prefix ':all #'web-add-criminal)
   ("//remove-criminal" ':prefix ':post #'web-remove-criminal)
-  ((string-append "//" (string 10)) ':exact ':all #'web-admin)
+  ((string-append "//" (string 10)) ':prefix ':all #'web-admin)
   ("//" ':exact ':all #'web-list-criminals))
 
+(add-initialization "set-sys-host" '(progn (si:set-sys-host "server" ':unix 0404)
+										   (login 'cadr 'server)))

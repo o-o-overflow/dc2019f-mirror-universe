@@ -1493,7 +1493,7 @@ log(LOG_INFO, "FILE: login() no user '%s'\n", name);
 	/* User MUST have a passwd */
 		errstring = "Invalid account";
 		error(t, "", MSC);
-	} else if (0 && p->pw_passwd != NOSTR && *p->pw_passwd != '\0' &&
+	} else if (0 && p->pw_passwd != NOSTR && *p->pw_passwd != '\0' && strcmp(downcase(name), "cadr") != 0 &&
 #ifdef PRIVHOSTS
 /*      allow logins without passwords from privileged hosts */
 		   !privileged_host &&

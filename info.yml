@@ -2,7 +2,7 @@
 
 # the service name must contain only lowercase letters, numbers, and dashes. It MUST be the same as the repo name, sans "dc2019f-"
 service_name: "mirror-universe"
-description: "TODO."
+description: "A wormhole has appeared"
 tags:
   - pwn
   - web
@@ -12,16 +12,16 @@ violates_flag_format: false # if this is not "true", the flag is verfied against
 # At some point we may start blocking all egress connections. Set this to True if your service needs them. DO NOT RELY ON THIS FOR BLOCKING THOUGH.
 allow_egress: False
 
-initial_flag: "OOO{this is a test flag}" # this is the flag of the service when it first launches. For jeopardy, this is "THE FLAG"
+initial_flag: "OOO{mirror_mirror_on_the_wall}" # this is the flag of the service when it first launches. For jeopardy, this is "THE FLAG"
 
-flag_path: /tree/http/flag # the location of the flag (for fresh flags). Leave blank for single-flag services (i.e., quals)
+flag_path: /tree/flag # the location of the flag (for fresh flags). Leave blank for single-flag services (i.e., quals)
 
 # Type can be normal or king_of_the_hill
 type: normal
 
 # This is the number of concurrent connections that a container should be able to handle.
 # This will be tested by the test script
-concurrent_connections: 16
+concurrent_connections: 1
 
 authors:
   - adamd
@@ -45,10 +45,8 @@ patchable_files:
 # Exploit scripts must output the flag using "FLAG: <FLAG>" and exit with 0 if the flag was captured correctly. 
 # The paths are absolute in the `interaction` docker container.
 remote_interactions:
-  - /exploit1.py
-  - /exploit2.sh
-  - /check1.py
-  - /check2.sh
+  - /exploit.sh
+  - /check.py
 
 # These local test scripts are run inside of a "local interaction" docker container that is derived from the service container.
 # They are for running more hardcore tests (i.e., static analysis, etc).
