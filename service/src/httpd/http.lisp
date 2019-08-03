@@ -293,7 +293,9 @@ test=adam&foo=bar
   (declare (special out))
   (200-resp (string-append "Some system info: "
 						   (si:system-version-info)
-						   "<br>Request info<br>"						   
+						   "<br>user: "
+						   user-id
+						   "<br>Request info<br>"
 						   (http-req-method request)
 						   "<br>"
 						   (http-req-uri request)

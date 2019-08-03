@@ -277,14 +277,16 @@ if __name__ == '__main__':
             input()
     elif arg == 'deploy':
             tag_and_deploy(SERVICE_IMAGE, DOCKER_REGISTRY)
-            tag_and_deploy(INTERACTION_IMAGE, DOCKER_REGISTRY)
-            tag_and_deploy(LOCAL_TESTER_IMAGE, DOCKER_REGISTRY)
-            for i in range(NUM_TEAMS):
-                    team_id = i+1
-                    _LOG.info("tagging for team %d" % (team_id))
-                    team_service_name = "%s/%s-team-%d:latest" % (DOCKER_REGISTRY, SERVICE_IMAGE, team_id)
-                    tag(SERVICE_IMAGE, team_service_name)
-                    deploy(team_service_name)
+            if SERVICE_CONF['type'].lower() == "normal":
+                    tag_and_deploy(INTERACTION_IMAGE, DOCKER_REGISTRY)
+                    if os.path.exists(os.path.join(SERVICE_DIR, "local-tester", "Dockerfile")):
+                            tag_and_deploy(LOCAL_TESTER_IMAGE, DOCKER_REGISTRY)
+                    for i in range(NUM_TEAMS):
+                            team_id = i+1
+                            _LOG.info("tagging for team %d" % (team_id))
+                            team_service_name = "%s/%s-team-%d:latest" % (DOCKER_REGISTRY, SERVICE_IMAGE, team_id)
+                            tag(SERVICE_IMAGE, team_service_name)
+                            deploy(team_service_name)
     else:
         build_images()
         test_local()

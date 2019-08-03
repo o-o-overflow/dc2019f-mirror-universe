@@ -62,7 +62,7 @@ def main():
     # /debug functionality
     time.sleep(2)
     result = requests.get(f"{base_uri}/debug?foo=bar")
-    required_strings = ['foo', 'bar', 'Some system info', 'GET']
+    required_strings = ['foo', 'bar', 'Some system info', 'GET', 'user: CADR']
     for s in required_strings:
         if not s in result.text:
             print(f"Error with debug", file=sys.stderr)

@@ -295,14 +295,18 @@ class ChaosConnectionThread(threading.Thread):
         self.dest_idx = 0
         self.dest_pkt_num = 0
 
-        rfc_pkt = create_chaos_pkt(CHAOS_OP.RFC, self.service, self.dest_addr, self.dest_idx, self.my_addr, self.my_idx, self.my_pkt_num, self.dest_pkt_num)
-
-        with self.fd_lock:
-            self.fd.sendall(add_chaosd_header(rfc_pkt))
-
         # Wait for the response
         done = False
+        send_rfc = True
+        num_to_resend = 3
+        i = 0
         while not done:
+            if send_rfc or (i % num_to_resend) == 0:
+                rfc_pkt = create_chaos_pkt(CHAOS_OP.RFC, self.service, self.dest_addr, self.dest_idx, self.my_addr, self.my_idx, self.my_pkt_num, self.dest_pkt_num)
+                with self.fd_lock:
+                    self.fd.sendall(add_chaosd_header(rfc_pkt))
+                send_rfc = False
+            i += 1
             pkt = self.read_chaos_packet()
             l.debug(f"pkt {pkt}")
             if not pkt:
