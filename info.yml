@@ -6,6 +6,9 @@ description: "A wormhole has appeared"
 tags:
   - pwn
   - web
+
+game_port: 5000
+
   
 violates_flag_format: false # if this is not "true", the flag is verfied against the flag format
 
