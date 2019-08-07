@@ -8,8 +8,10 @@ IMAGE_FMT = "%s"
 import concurrent.futures
 import contextlib
 import subprocess
+import argparse
 import tempfile
 import logging
+import pathlib
 import shutil
 import random
 import string
@@ -23,6 +25,16 @@ import os
 logging.basicConfig()
 _LOG = logging.getLogger("OOO")
 _LOG.setLevel("DEBUG")
+
+try:
+    import ooogame.patchbot.patchbot as patchbot    
+except ImportError:
+    _LOG.warning(f"unable to import the patchbot. You won't be able to run the patching tests. Install from https://github.com/o-o-overflow/dcf-game-infrastructure")
+try:
+    import docker
+except ImportError:
+    _LOG.warning(f"unable to import docker. You won't be able to run the patching tests.")
+
 
 SERVICE_DIR = os.path.dirname(__file__)
 
@@ -108,7 +120,8 @@ def validate_yaml():
 
     assert (not set(SERVICE_NAME) - set(string.ascii_lowercase + '-' + string.digits)) and SERVICE_NAME[0] in string.ascii_lowercase, "SERVICE NAME MUST BE KUBERNETES-COMPATIBLE (lowercase, '-', and digits, starting with a letter)"
 
-    assert subprocess.check_output(("git -C %s remote get-url origin"%SERVICE_DIR).split()).decode('latin1').split("/")[-1].split(".git")[0] == CTF_TAG + "-" + SERVICE_NAME, "GIT REPOSITORY MUST BE THE SAME AS THE CTF TAG PLUS THE SERVICE NAME (%s-%s)" % (CTF_TAG, SERVICE_NAME)
+    git_remote = subprocess.check_output(("git -C %s remote get-url origin"%SERVICE_DIR).split()).decode('latin1').split("/")[-1].split(".git")[0].strip()
+    assert git_remote == CTF_TAG + "-" + SERVICE_NAME, "GIT REPOSITORY (%s) MUST BE THE SAME AS THE CTF TAG PLUS THE SERVICE NAME (%s-%s)" % (git_remote, CTF_TAG, SERVICE_NAME)
 
 def build_images():
     if os.path.exists(os.path.join(SERVICE_DIR, "service", "Dockerfile")):
@@ -133,11 +146,11 @@ def test_local():
     if not os.path.exists(os.path.join(SERVICE_DIR, "local-tester", "Dockerfile")):
         return
 
-    _LOG.info("Local-testing container...")
-    with launch_container(image=LOCAL_TESTER_IMAGE) as (tester_container, _, _):
-        _LOG.info("launching local tests")
-        tests = SERVICE_CONF['local_tests']
-        for script in tests:
+    _LOG.info("launching local tests")
+    tests = SERVICE_CONF['local_tests']
+    for script in tests:
+        _LOG.info("Local-testing container...")
+        with launch_container(image=LOCAL_TESTER_IMAGE) as (tester_container, _, _):
             _LOG.info("launching %s", script)
             assert os.system("docker exec %s %s" % (tester_container, script)) == 0, "Check %s failed!" % script
 
@@ -211,7 +224,7 @@ def test_short_reads():
         assert final_num_procs < (start_num_procs + ALLOWED_DIFF), "your service did not clean up after short reads starting procs = {sp} final={fp}".format(sp=start_num_procs, fp=final_num_procs)
 
 
-def build_bundle():
+def build_bundle(args=None):
     _LOG.info("building public bundle!")
 
     tempdir = tempfile.mkdtemp()
@@ -242,53 +255,154 @@ def tag(image, tag):
     _LOG.info(tagcmd)
     assert os.system(tagcmd) == 0
 
-def deploy(image):
+def deploy_image(image):
     pushcmd = "docker push %s" % (image)
     _LOG.info(pushcmd)
     assert os.system(pushcmd) == 0
 
 def tag_and_deploy(image, registry):
     tag(image, "%s/%s:latest" % (registry, image))
-    deploy("%s/%s:latest" % (registry, image))
+    deploy_image("%s/%s:latest" % (registry, image))
 
+def build(args=None):
+    build_images()
+    build_bundle()
 
-if __name__ == '__main__':
-    validate_yaml()
-    arg = sys.argv[1] if len(sys.argv) >= 2 else ""
-    if arg == 'bundle':
-        build_bundle()
-    elif arg == 'build':
-        build_images()
-        build_bundle()
-    elif arg == 'test':
-        if len(sys.argv) == 2:
-            test_local()
-            test_interactions()
-        else:
-            run_interactions(sys.argv[2], int(sys.argv[3]), SERVICE_CONF['initial_flag'])
-    elif arg == 'launch':
-        build_images()
-        with launch_container(image=SERVICE_IMAGE if len(sys.argv) == 2 else sys.argv[2]) as (_, _ip_address, _port):
-            print("")
-            print("SERVICE RUNNING AT: %s %s" % (_ip_address, _port))
-            print("nc %s %s" % (_ip_address, _port))
-            print("./tester test %s %s" % (_ip_address, _port))
-            print("%s:%s" % (_ip_address, _port))
-            input()
-    elif arg == 'deploy':
-            tag_and_deploy(SERVICE_IMAGE, DOCKER_REGISTRY)
-            if SERVICE_CONF['type'].lower() == "normal":
-                    tag_and_deploy(INTERACTION_IMAGE, DOCKER_REGISTRY)
-                    if os.path.exists(os.path.join(SERVICE_DIR, "local-tester", "Dockerfile")):
-                            tag_and_deploy(LOCAL_TESTER_IMAGE, DOCKER_REGISTRY)
-                    for i in range(NUM_TEAMS):
-                            team_id = i+1
-                            _LOG.info("tagging for team %d" % (team_id))
-                            team_service_name = "%s/%s-team-%d:latest" % (DOCKER_REGISTRY, SERVICE_IMAGE, team_id)
-                            tag(SERVICE_IMAGE, team_service_name)
-                            deploy(team_service_name)
-    else:
-        build_images()
+def test(args):
+    if args.ip == None and args.port == None:
         test_local()
         test_interactions()
-        build_bundle()
+    else:
+        run_interactions(args.ip, int(args.port), SERVICE_CONF['initial_flag'])
+
+def launch(args):
+    build_images()
+    with launch_container(image=args.image) as (_, _ip_address, _port):
+        print("")
+        print("SERVICE RUNNING AT: %s %s" % (_ip_address, _port))
+        print("nc %s %s" % (_ip_address, _port))
+        print("./tester test %s %s" % (_ip_address, _port))
+        print("%s:%s" % (_ip_address, _port))
+        input()
+
+def deploy(args=None):
+    tag_and_deploy(SERVICE_IMAGE, DOCKER_REGISTRY)
+    if SERVICE_CONF['type'].lower() == "normal":
+        tag_and_deploy(INTERACTION_IMAGE, DOCKER_REGISTRY)
+        if os.path.exists(os.path.join(SERVICE_DIR, "local-tester", "Dockerfile")):
+            tag_and_deploy(LOCAL_TESTER_IMAGE, DOCKER_REGISTRY)
+        for i in range(NUM_TEAMS):
+            team_id = i+1
+            _LOG.info("tagging for team %d" % (team_id))
+            team_service_name = "%s/%s-team-%d:latest" % (DOCKER_REGISTRY, SERVICE_IMAGE, team_id)
+            tag(SERVICE_IMAGE, team_service_name)
+            deploy_image(team_service_name)
+
+def get_expose_from_docker(repo_dir):
+    ddata = open(os.path.join(repo_dir, "service", "Dockerfile"),"r").read()
+    ptrn = re.compile(r"EXPOSE[ \s]{1,10}(?P<port>[0-9]{1,6})", flags=re.IGNORECASE)
+
+    search = re.search(ptrn, ddata)
+
+    if search:
+        return int(search.group("port"))
+    else:
+        print("Error, port not in Dockerfile")
+        exit(-1)
+
+
+def patchbot_test_with_patch(patch_contents):
+    client = docker.from_env()
+    api = docker.APIClient()
+
+    port = get_expose_from_docker(".")
+
+    remote_without_exploits = [s for s in SERVICE_CONF['remote_interactions'] if not os.path.basename(s).startswith("exploit")]
+
+    return patchbot.check_and_deploy_service(client,
+                                             api,
+                                             container_name=SERVICE_IMAGE,
+                                             deployed_container_name=f"{SERVICE_IMAGE}-patch-test",
+                                             remote_interaction_container_name=INTERACTION_IMAGE,
+                                             local_interaction_container_name=LOCAL_TESTER_IMAGE,
+                                             patch_id=1,
+                                             service_id=41,
+                                             service_port=port,
+                                             remote_interaction_scripts=remote_without_exploits,
+                                             local_interaction_scripts=SERVICE_CONF['local_tests'],
+                                             docker_location_to_patch=SERVICE_CONF['patchable_file'],
+                                             new_file=patch_contents,
+                                             max_bytes=SERVICE_CONF['max_patchable_bytes'],
+                                             check_timeout=SERVICE_CONF.get('check_timeout', 120),
+                                             pull_latest=False,
+                                             deploy_service=False)
+    
+
+def test_all_patches(args=None):
+    build_images()    
+    logging.getLogger("patchbot").setLevel(logging.DEBUG)
+    for patch_file in pathlib.Path(".").glob("patches/*"):
+        with open(patch_file, 'rb') as patch:
+            _, ext = os.path.splitext(patch_file)
+            status = ext[1:]
+            _LOG.info(f"going to test {patch_file}, expecting the result to be {status}")
+            result, metadata = patchbot_test_with_patch(patch.read())
+            _LOG.info(f"results from {patch_file}: {result} with public metadata: {metadata}")
+            assert result.name.lower() == status.lower(), f"Testing patching failed for {patch_file}, expected {status} but got {result}"
+            _LOG.info(f"All good, got expected results for {patch_file}")
+
+def test_patch(args):
+    build_images()    
+    logging.getLogger("patchbot").setLevel(logging.DEBUG)
+    patch_file = args.patch
+    with open(patch_file, 'rb') as patch:
+        result, metadata = patchbot_test_with_patch(patch.read())
+        _LOG.info(f"results from {patch_file}: {result} with public metadata: {metadata}")
+
+def do_all(args=None):
+    build_images()
+    test_local()
+    test_interactions()
+    if os.path.exists(os.path.join(SERVICE_DIR, "patches")):
+        test_all_patches()
+    build_bundle()
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(prog="tester")
+    subparsers = parser.add_subparsers(help="sub-command help")
+
+    parser_bundle = subparsers.add_parser("bundle", help="bundle the service")
+    parser_bundle.set_defaults(func=build_bundle)
+
+    parser_build = subparsers.add_parser("build", help="build and bundle the service")
+    parser_build.set_defaults(func=build)
+
+    parser_test = subparsers.add_parser("test", help="test the service")
+    parser_test.set_defaults(func=test)
+    parser_test.add_argument('ip', help="ip address to test", default=None, nargs='?')
+    parser_test.add_argument('port', help="port to test", default=None, nargs='?')
+
+    parser_launch = subparsers.add_parser("launch", help="launch the service")
+    parser_launch.set_defaults(func=launch)
+    parser_launch.add_argument('image', help="image to launch", default=SERVICE_IMAGE, nargs='?')
+
+    parser_deploy = subparsers.add_parser("deploy", help="deploy the service")
+    parser_deploy.set_defaults(func=deploy)
+
+    parser_test_patch = subparsers.add_parser("test-patch", help="Test a specific patch")
+    parser_test_patch.add_argument('patch', help="file to try as patch")
+    parser_test_patch.set_defaults(func=test_patch)
+
+    parser_test_all_patches = subparsers.add_parser("test-all-patches", help="Test all patches in ./patches")
+    parser_test_all_patches.set_defaults(func=test_all_patches)
+    
+
+    parser_deploy = subparsers.add_parser("all", help="Do everything")
+    parser_deploy.set_defaults(func=do_all)
+
+    _args = parser.parse_args()
+
+    if _args == argparse.Namespace():
+        do_all()
+    else:
+        _args.func(_args)

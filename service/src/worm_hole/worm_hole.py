@@ -6,6 +6,7 @@ import datetime
 import logging
 import multiprocessing
 import os
+import signal
 import socketserver
 
 import ipdb
@@ -119,11 +120,9 @@ def http_response(http_code, reason, body=b"", content_type=b"text/html"):
 # And send back the HTTP response
 
 class WormHoleTCPHandler(socketserver.StreamRequestHandler):
-
-    timeout = 12
-
     def handle(self):
         start = datetime.datetime.now()
+        signal.alarm(12)
         l.info(f"Got new http request")
         req = parse_http_req(self.rfile)
         if not req:
@@ -190,5 +189,4 @@ if __name__ == "__main__":
 #    with socketserver.TCPServer((args.host, args.port), WormHoleTCPHandler) as server:    
     with socketserver.ForkingTCPServer((args.host, args.port), WormHoleTCPHandler) as server:
         l.info(f"starting the wormhole {args.host} {args.port}")
-        while True:
-            server.handle_request()
+        server.serve_forever()

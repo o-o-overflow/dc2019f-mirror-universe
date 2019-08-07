@@ -9,6 +9,7 @@ tags:
 
 game_port: 5000
 
+check_timeout: 200
   
 violates_flag_format: false # if this is not "true", the flag is verfied against the flag format
 
@@ -58,4 +59,5 @@ remote_interactions:
 # They are for running more hardcore tests (i.e., static analysis, etc).
 # The paths are absolute in the `local-test` docker container.
 local_tests:
-  - /check_filetype.sh
+  - /check_get_users.sh
+  - /check_admin_accessible.sh

@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y python3 python3-pip bash xvfb superviso
 RUN mkdir -p /opt/chaos /opt/usim /opt/worm_hole /tree
 RUN useradd -m cadr
 RUN echo cadr:cadr | chpasswd
-RUN touch /home/cadr/LISPM.INIT && chmod 644 /home/cadr/LISPM.INIT
+RUN touch /home/cadr/lispm.init && chmod 644 /home/cadr/lispm.init
 
 
 RUN python3 -m venv /opt/worm_hole/venv
