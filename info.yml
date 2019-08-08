@@ -2,7 +2,9 @@
 
 # the service name must contain only lowercase letters, numbers, and dashes. It MUST be the same as the repo name, sans "dc2019f-"
 service_name: "mirror-universe"
-description: "A wormhole has appeared"
+description: "A wormhole has appeared, what possible wonders does it contain? Our probes indicate that travel through the wormhole is slow and dangerous. Who will you find on the other side of the wormhole? Perhaps the greatest adversary of them all---yourself!
+
+We've encountered probe loss leading to connection loss. Entry to the wormhole will be limited to 12 seconds."
 tags:
   - pwn
   - web
