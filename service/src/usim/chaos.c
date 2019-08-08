@@ -387,56 +387,6 @@ chaos_connect_to_server(void)
 	return 0;
 }
 
-void
-dump_contents(u_char *buf, int cnt)
-{
-    int i, j, offset, skipping;
-    char cbuf[17];
-    char line[80];
-	
-    offset = 0;
-    skipping = 0;
-    while (cnt > 0) {
-        if (offset > 0 && memcmp(buf, buf-16, 16) == 0) {
-            skipping = 1;
-        } else {
-            if (skipping) {
-                skipping = 0;
-                printf("  ...\n");
-            }
-        }
-
-        if (!skipping) {
-            for (j = 0; j < 16; j++) {
-                char *pl = line+j*3;
-				
-                if (j >= cnt) {
-                    strcpy(pl, "xx ");
-                    cbuf[j] = 'x';
-                } else {
-                    sprintf(pl, "%02x ", buf[j]);
-                    cbuf[j] = buf[j] < ' ' ||
-                        buf[j] > '~' ? '.' : buf[j];
-                }
-                pl[3] = 0;
-            }
-            cbuf[16] = 0;
-
-            printf("  %08x %s %s\n", offset, line, cbuf);
-        }
-
-        buf += 16;
-        cnt -= 16;
-        offset += 16;
-    }
-
-    if (skipping) {
-        skipping = 0;
-        printf("  %08x ...\n", offset-16);
-    }
-}
-
-
 int
 chaos_poll(void)
 {
@@ -526,8 +476,6 @@ chaos_poll(void)
 	DEBUG(TRACE_CHAOS, "chaos: polling; got chaosd packet %d\n", ret);
 
 	int dest_addr;
-
-	dump_contents(chaos_rcv_buffer, ret);
 
 	chaos_rcv_buffer_size = (ret + 1) / 2;
 	chaos_rcv_buffer_empty = 0;
