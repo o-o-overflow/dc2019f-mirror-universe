@@ -5,4 +5,4 @@ set -e
 cd /opt/usim 
 
 ./diskmaker -c disk.img
-xvfb-run /opt/usim/usim
+xvfb-run /usr/bin/timeout 200s /opt/usim/usim

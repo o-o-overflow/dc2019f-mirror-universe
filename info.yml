@@ -44,7 +44,7 @@ patchable_file: /opt/usim/system-78-48.LOD
 
 # The maximum difference in bytes between the original binary and the patch, if not supplied assumed to be 200 bytes
 # TODO: fix this to desired value
-max_patchable_bytes: 200
+max_patchable_bytes: 50
 
 # Test scripts are heavily encouraged.
 # All scripts should exit 0 if nothing went wrong.
