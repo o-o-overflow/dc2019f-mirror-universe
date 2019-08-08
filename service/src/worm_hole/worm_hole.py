@@ -118,6 +118,8 @@ def http_response(http_code, reason, body=b"", content_type=b"text/html"):
 # And send back the HTTP response
 
 class WormHoleTCPHandler(socketserver.StreamRequestHandler):
+    allow_reuse_address = True
+    
     def handle(self):
         start = datetime.datetime.now()
         signal.alarm(12)
