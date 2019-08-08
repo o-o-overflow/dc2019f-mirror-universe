@@ -139,6 +139,12 @@ class WormHoleTCPHandler(socketserver.StreamRequestHandler):
 
         body = req.body
 
+        # check the size of the request, if it's too big, then reject the request
+        size = len(status_line) + len(headers) + len(body)
+        if size > 512:
+            self.request.sendall(http_response(b"400", b"Bad request", b"Your request is too big for the worm hole."))
+            return
+
         # Check, if it was a GET request with something in the ./static directory, send them that
         if req.method == b"GET":
             if not b'..' in req.uri:
@@ -189,4 +195,7 @@ if __name__ == "__main__":
 #    with socketserver.TCPServer((args.host, args.port), WormHoleTCPHandler) as server:    
     with socketserver.ForkingTCPServer((args.host, args.port), WormHoleTCPHandler) as server:
         l.info(f"starting the wormhole {args.host} {args.port}")
-        server.serve_forever()
+        try:
+            server.serve_forever()
+        finally:
+            server.server_close()
