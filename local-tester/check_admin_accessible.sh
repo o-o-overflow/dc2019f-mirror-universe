@@ -9,14 +9,14 @@ EOF
 # Start the service
 /usr/bin/supervisord &
 sleep 10
-until curl -m 10 http://localhost:31337/debug | grep "user: CADR" ; do
+until curl -m 10 http://localhost:5000/debug | grep "user: CADR" ; do
     printf '.'
     sleep 10
 done
 
 sleep 10
 PAYLOAD="%22hello%20world%22"
-OUTPUT=$(curl -v -m 30 $(python3 -c "print('http://localhost:31337/\x08?cmd=$PAYLOAD')"))
+OUTPUT=$(curl -v -m 30 $(python3 -c "print('http://localhost:5000/\x08?cmd=$PAYLOAD')"))
 echo "$OUTPUT"
 
 (echo "$OUTPUT" | grep "hello world") || (echo "PUBLIC: The admin cannot access the admin functionality"; exit -1)

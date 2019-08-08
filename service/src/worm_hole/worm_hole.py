@@ -9,8 +9,6 @@ import os
 import signal
 import socketserver
 
-import ipdb
-
 import chaoslib
 
 l = logging.getLogger("worm-hole")
@@ -192,7 +190,7 @@ if __name__ == "__main__":
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
-#    with socketserver.TCPServer((args.host, args.port), WormHoleTCPHandler) as server:    
+    l.info(f"starting the wormhole {args.host} {args.port}")        
     with socketserver.ForkingTCPServer((args.host, args.port), WormHoleTCPHandler) as server:
         l.info(f"starting the wormhole {args.host} {args.port}")
         try:

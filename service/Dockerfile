@@ -1,6 +1,6 @@
 FROM ubuntu:18.04
 
-RUN apt-get update && apt-get install -y python3 python3-pip bash xvfb supervisor python3-venv && \
+RUN apt-get update && apt-get install -y python3 python3-pip bash xvfb supervisor python3-venv net-tools && \
 	pip3 install wheel
 
 RUN mkdir -p /opt/chaos /opt/usim /opt/worm_hole /tree
@@ -26,5 +26,5 @@ RUN touch /opt/usim/disk.img && chown cadr:cadr /opt/usim/disk.img
 
 COPY deploy/supervisord.conf /etc/supervisord.conf
 
-expose 31337
+expose 5000
 CMD ["/usr/bin/supervisord"]
