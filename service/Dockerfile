@@ -23,6 +23,7 @@ COPY deploy/chaos/chaosd deploy/chaos/FILE deploy/chaos/MINI deploy/chaos/server
 
 COPY deploy/usim /opt/usim/
 RUN touch /opt/usim/disk.img && chown cadr:cadr /opt/usim/disk.img
+RUN chmod 644 /opt/usim/system-78-48.LOD
 
 COPY deploy/supervisord.conf /etc/supervisord.conf
 

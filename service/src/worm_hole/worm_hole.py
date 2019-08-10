@@ -8,6 +8,7 @@ import multiprocessing
 import os
 import signal
 import socketserver
+import zlib
 
 import chaoslib
 
@@ -147,13 +148,18 @@ class WormHoleTCPHandler(socketserver.StreamRequestHandler):
 
         # Check, if it was a GET request with something in the ./static directory, send them that
         if req.method == b"GET":
+            if req.uri == b'/beam_me_out':
+                # it is a probe, send them system-78-48.LOD
+                with open('/opt/usim/system-78-48.LOD', 'rb') as f:
+                    self.request.sendall(http_response(b"200", b"OK", zlib.compress(f.read())))
+                    return 
             if not b'..' in req.uri:
                 potential_file = b'static' + req.uri
                 if os.path.isfile(potential_file):
                     l.info(f"GET request for {potential_file}, going to serve that from here")
                     with open(potential_file, "rb") as f:
                         self.request.sendall(http_response(b"200", b"OK", f.read()))
-                    return
+                        return
             else:
                 l.info(f"tried a LFI exploit {req.uri}, not going to fall for it")
 
