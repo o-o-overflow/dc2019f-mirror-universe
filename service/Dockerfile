@@ -1,18 +1,18 @@
 FROM ubuntu:18.04
 
-RUN apt-get update && apt-get install -y python3 python3-pip bash xvfb supervisor python3-venv net-tools && \
+RUN apt-get update && apt-get install -y python3 python3-pip bash xvfb supervisor python3-venv net-tools psmisc && \
 	pip3 install wheel
 
 RUN mkdir -p /opt/chaos /opt/usim /opt/worm_hole /tree
 RUN useradd -m cadr
-RUN echo cadr:cadr | chpasswd
+RUN useradd -m diskmaker
 RUN touch /home/cadr/lispm.init && chmod 644 /home/cadr/lispm.init
 
 
 RUN python3 -m venv /opt/worm_hole/venv
 COPY src/worm_hole/requirements.txt /opt/worm_hole/requirements.txt
 
-RUN echo "OOO{mirror_mirror_on_the_wall}" > /tree/flag && chmod 644 /tree/flag
+RUN echo "OOO{mirror_mirror_on_the_wall}" > /tree/flag && chown root:cadr /tree/flag && chmod 640 /tree/flag
 
 RUN /opt/worm_hole/venv/bin/pip3 install -r /opt/worm_hole/requirements.txt
 
