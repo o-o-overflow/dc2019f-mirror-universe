@@ -9,6 +9,8 @@ Admin note: We've encountered probe loss leading to connection loss. Exposure to
 Patches available at /beam_me_out
 <br><br>
 Patched binary must be the same size as original.
+<br><br>
+Sunday update: due to congestion at the worm_hole, each team will be restricted to four simultaneous connections into the mirror_universe. You will get a RST when you hit this limit, and it could decrease depending on load.  
 "
 tags:
   - pwn
